@@ -1,0 +1,211 @@
+---
+title: "Linear Regression"
+author: "Dhrubasattwata Roy Choudhury"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Types of Machine Learning Algorithm
+
+There are two types of supervised machine learning algorithms: Regression and classification. The former predicts continuous value outputs while the latter predicts discrete outputs.
+
+Linear regression performs the task to predict a linear relationship between dependent variable value (y) based on a given independent variable (x). Plotting the variables on axis gives us a straight line that best fits the data points. Mathematically it is represented by:
+Y = α + Xβ + ε
+where β is the intercept, α is the slope of the line, and ε is normally distributed.
+
+### Dataset
+For this analysis, use the "cars" dataset that comes with R by default. 
+
+```{r}
+cars <- cars
+# Descriptive statistics of the dataset
+summary(cars)
+```
+
+### Graphical Analysis
+The aim of this exercise is to build a simple regression model that we can use to predict Distance (dist) by establishing a statistically significant linear relationship with Speed (speed). 
+
+1. Scatter plot: Visualize the linear relationship between the predictor and response
+2. Box plot: To spot any outlier observations in the variable. Having outliers in your predictor can drastically affect the predictions as they can easily affect the direction/slope of the line of best fit.
+3. Density plot: To see the distribution of the predictor variable. Ideally, a close to normal distribution (a bell shaped curve), without being skewed to the left or right is preferred. Let us see how to make each one of them.
+
+
+```{r}
+scatter.smooth(x=cars$speed, y=cars$dist, main="Dist ~ Speed")  # scatterplot
+```
+
+The scatter plot along with the smoothing line above suggests a linearly increasing relationship between the ‘dist’ and ‘speed’ variables. This is a good thing, because, one of the underlying assumptions in linear regression is that the relationship between the response and predictor variables is linear and additive.
+
+BoxPlot – Check for outliers
+Generally, any datapoint that lies outside the 1.5 * interquartile-range (1.5*IQR) is considered an outlier, where, IQR is calculated as the distance between the 25th percentile and 75th percentile values for that variable.
+
+```{r}
+par(mfrow=c(1, 2))  # divide graph area in 2 columns
+boxplot(cars$speed, main="Speed", sub=paste("Outlier rows: ", boxplot.stats(cars$speed)$out), col="midnightblue")  # box plot for 'speed'
+boxplot(cars$dist, main="Distance", sub=paste("Outlier rows: ", boxplot.stats(cars$dist)$out), col="midnightblue")  # box plot for 'distance'
+```
+
+Density plot – Check if the response variable is close to normality
+
+```{r}
+library(e1071)
+par(mfrow=c(1, 2))  # divide graph area in 2 columns
+plot(density(cars$speed), main="Density Plot: Speed", ylab="Frequency", sub=paste("Skewness:", round(e1071::skewness(cars$speed), 2)))  # density plot for 'speed'
+polygon(density(cars$speed), col="midnightblue")
+plot(density(cars$dist), main="Density Plot: Distance", ylab="Frequency", sub=paste("Skewness:", round(e1071::skewness(cars$dist), 2)))  # density plot for 'dist'
+polygon(density(cars$dist), col="midnightblue")
+```
+
+
+### Correlation
+Correlation is a statistical measure that suggests the level of linear dependence between two variables.
+
+```{r}
+cor(cars$speed, cars$dist)  # calculate correlation between speed and distance 
+```
+
+
+### Build Linear Model
+
+After establishing the linear relationship pictorially in the scatter plot and by computing the correlation, let us set up the linear regression model.
+
+```{r}
+linear.model <- lm(dist ~ speed, data=cars)  # build linear regression model on full data
+output <- summary(linear.model)
+output
+```
+
+'Coefficients’: Intercept: -17.58, speed: 3.93.
+
+Some more performance Metrics:
+```{r}
+r2 <- output$adj.r.squared # higher the better
+aic <- AIC(linear.model)  # lower the better
+bic <- BIC(linear.model)  # lower the better
+
+df <- rbind(r2,aic,bic)
+rownames(df) <- c("Adj. R2", "AIC", "BIC")
+colnames(df) <- "value"
+df
+```
+
+### Prediction using Linear Models
+
+The preferred practice is to split your dataset into a 80:20 sample (training:test), then, build the model on the 80% sample and then use the model thus built to predict the dependent variable on test data.
+
+Step 1: Create the training (development) and test (validation) data samples from original data.
+```{r}
+set.seed(123)  # setting seed to reproduce results of random sampling
+trainingRowIndex <- sample(1:nrow(cars), 0.8*nrow(cars))  # row indices for training data
+trainingData <- cars[trainingRowIndex, ]  # model training data
+testData  <- cars[-trainingRowIndex, ]   # test data
+```
+
+
+Step 2: Develop the model on the training data
+
+```{r}
+linear.mod <- lm(dist ~ speed, data=trainingData)  # build the model
+summary <- summary(linear.mod)
+summary
+```
+
+```{r}
+r2 <- summary$adj.r.squared # higher the better
+aic <- AIC(linear.mod)  # lower the better
+bic <- BIC(linear.mod)  # lower the better
+
+df <- rbind(r2,aic,bic)
+rownames(df) <- c("Adj. R2", "AIC", "BIC")
+colnames(df) <- "value"
+df
+```
+
+Step 3:  Use it to predict the distance on test data
+```{r}
+distPred <- predict(linear.mod, testData)  # predict distance
+```
+
+Step 4: Calculate prediction accuracy and error rates
+
+```{r}
+actuals_preds <- data.frame(cbind(actuals=testData$dist, predicteds=round(distPred,3)))  # make actuals_predicteds dataframe.
+correlation_accuracy <- cor(actuals_preds)
+actuals_preds
+print(paste0("The correlation is ", round(correlation_accuracy[1,2],3)*100, "%"))
+```
+### Performance Metrics
+```{r}
+min_max_accuracy <- mean(apply(actuals_preds, 1, min) / apply(actuals_preds, 1, max))  
+mape <- mean(abs((actuals_preds$predicteds - actuals_preds$actuals))/actuals_preds$actuals) 
+print(paste0("Min_Max_Accuracy is ", round(min_max_accuracy,3)))
+print(paste0("MAPE is ", round(mape,3)))
+```
+
+### Cross Validation: k- Fold Cross validation
+
+Suppose, the model predicts satisfactorily on the 20% split (test data), is that enough to believe that your model will perform equally well all the time? It is important to rigorously test the model’s performance as much as possible. One way is to ensure that the model equation you have will perform well, when it is ‘built’ on a different subset of training data and predicted on the remaining data.
+
+How to do this is? Split your data into ‘k’ mutually exclusive random sample portions. Keeping each portion as test data, we build the model on the remaining (k-1 portion) data and calculate the mean squared error of the predictions. 
+
+```{r}
+library(DAAG)
+cvResults <- suppressWarnings(CVlm(data=cars, form.lm=dist ~ speed, m=10, dots=FALSE, seed=100, legend.pos="topleft",  printit=FALSE, main="Small symbols are predicted values while bigger ones are actuals."))  # performs the CV
+# m = 10 to divide into 10 sets, so test set is of 10% data
+
+attr(cvResults, 'ms') 
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

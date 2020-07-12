@@ -1,0 +1,119 @@
+---
+title: "Panel Regression"
+author: "Dhrubasattwata Roy Choudhury"
+date: "12/07/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Panel Regression
+
+Panel data, along with cross-sectional and time series data, are the main data types that we encounter when working with regression analysis. When it comes to panel data, standard regression analysis often falls short in isolating fixed and random effects.
+
+Types of data
+1. Cross-Sectional: Data collected at one particular point in time
+2. Time Series: Data collected across several time periods
+3. Panel Data: A mixture of both cross-sectional and time series data, i.e. collected at a particular point in time and across several time periods
+
+Types of Panel Regression:
+1. Fixed Effects: Effects that are independent of random disturbances, e.g. observations independent of time.
+2. Random Effects: Effects that include random disturbances.
+
+### Dataset
+For this tutorial, we are going to use a dataset of weekly internet usage in MB across 33 weeks across three different companies (A, B, and C). Download it from here: Github Repo
+
+```{r}
+mydata <- read.csv("C:/Users/Dhruba/Documents/R/data/internetplm.csv")
+head(mydata)
+```
+
+### Setting up the Fixed Effects Model
+```{r}
+library(plm)
+plmwithin <- plm(usage~income+videohours+webpages+gender+age, data = mydata, model = "within")
+summary(plmwithin)
+```
+
+### Setting up the Random Effects Model
+```{r}
+plmrandom <- plm(usage~income+videohours+webpages+gender+age, data = mydata, model = "random")
+summary(plmrandom)
+```
+
+In the case of the first regression, the regression is accounting for fixed effects (or internet usage independent of time), while the second is accounting for random effects (including time).
+Note that the variables gender and age which were deemed insigificant in the fixed effects regression are now being deemed significant in the random effects regression.
+
+### Fixed Effects regression: Further Analysis
+
+Analysing with fixef to isolate the effects of time on internet usage.
+```{r}
+#Effect of time on internet usage
+fixef(plmwithin,type="dmean")
+```
+
+```{r}
+summary(fixef(plmwithin, type = "dmean"))
+```
+
+Observe that weeks 10 and 33 are significant at the 10% level. Looking at the data
+```{r}
+df <- mydata[mydata$week== 10,]
+df <- df[,c("week", "usage")]
+df
+```
+For week 10, we see that usage across A, B, and C is higher than usual
+
+```{r}
+df <- mydata[mydata$week== 33,]
+df <- df[,c("week", "usage")]
+df
+```
+For week 10, we see that usage across A, B, and C is lower than usual
+
+This could indicate that something is taking place across these particular weeks to cause internet usage to be higher and lower than usual. We see that using fixef has allowed us to isolate the effect of time in this regard.
+
+Now, let us extract fixed effects – i.e. effects independent of time.
+```{r}
+twoway <-  plm(usage~income+videohours+webpages+gender+age+company,data=mydata,model="within",effect="time")
+fixef(twoway,effect="time")
+```
+We see that of the three internet companies, company C has the largest negative coefficient.
+
+Subset usage for the three companies and see what is going on:
+```{r}
+
+a <- subset(mydata, company=="a")
+b <- subset(mydata, company=="b")
+c <- subset(mydata, company=="c")
+
+mean(a$usage)
+mean(b$usage)
+mean(c$usage)
+```
+We see that mean internet usage for company C is lower than that of A and B.
+
+# Visualization for better understanding
+```{r}
+plot(a$usage,type='l')
+lines(a$usage, col="darkgreen")
+
+plot(b$usage,type='l')
+lines(b$usage, col="darkgreen")
+
+plot(c$usage,type='l')
+lines(c$usage, col="darkgreen")
+```
+
+We see that in the case of C, usage remains low overall but there are certain periods where we see a spike in usage. However, we see these spikes much more frequently for A and B.
+
+In this regard, comparing fixed and random effects has allowed us to isolate the impact of time on usage patterns for C.
+
+
+
+
+
+
+
